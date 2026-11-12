@@ -178,7 +178,8 @@ button, input, label { font: inherit; }
       <span id="serie" class="serie">Nenhuma lista aberta</span>
     </div>
     <div class="acoes">
-      <label class="btn" for="arq">Abrir .txt</label>
+      <!-- Botão "Abrir .txt" escondido por enquanto (para voltar, apague o atributo hidden) -->
+      <label class="btn" for="arq" hidden>Abrir .txt</label>
       <input type="file" id="arq" accept=".txt,text/plain" hidden>
       <button id="btPc" class="btn sec" type="button" hidden>Lista do PC</button>
       <button id="btCel" class="btn sec" type="button" hidden>Abrir no celular</button>
@@ -188,14 +189,9 @@ button, input, label { font: inherit; }
 
 <main class="wrap">
   <section id="vazio" class="vazio">
-    <h2>Escolha a lista de episódios</h2>
-    <p>Abra o arquivo .txt com os links, o mesmo usado no Baixador. Os episódios aparecem em ordem e o player lembra onde você parou em cada um.</p>
+    <h2>Nenhum episódio disponível</h2>
+    <p>Ainda não há episódios neste aparelho.</p>
     <p id="erroLista" class="erro-lista" hidden></p>
-    <div><label class="btn" for="arq">Abrir arquivo .txt</label></div>
-    <pre>========== EPISÓDIO 1 ==========
-https://...link do vídeo...
-========== EPISÓDIO 2 ==========
-https://...</pre>
   </section>
 
   <section id="sala" class="sala" hidden>
