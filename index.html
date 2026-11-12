@@ -178,8 +178,8 @@ button, input, label { font: inherit; }
       <span id="serie" class="serie">Nenhuma lista aberta</span>
     </div>
     <div class="acoes">
-      <!-- Botão "Abrir .txt" escondido por enquanto (para voltar, apague o atributo hidden) -->
-      <label class="btn" for="arq" hidden>Abrir .txt</label>
+      <!-- Botão "Abrir .txt" escondido; aparece só no link especial terminado em #abrir -->
+      <label class="btn" for="arq" data-abrir hidden>Abrir .txt</label>
       <input type="file" id="arq" accept=".txt,text/plain" hidden>
       <button id="btPc" class="btn sec" type="button" hidden>Lista do PC</button>
       <button id="btCel" class="btn sec" type="button" hidden>Abrir no celular</button>
@@ -191,7 +191,9 @@ button, input, label { font: inherit; }
   <section id="vazio" class="vazio">
     <h2>Nenhum episódio disponível</h2>
     <p>Ainda não há episódios neste aparelho.</p>
+    <p data-abrir hidden>Toque no botão abaixo e escolha o arquivo .txt de episódios que você recebeu. Basta fazer isso uma vez: o aparelho guarda a lista.</p>
     <p id="erroLista" class="erro-lista" hidden></p>
+    <div data-abrir hidden><label class="btn" for="arq">Abrir arquivo .txt</label></div>
   </section>
 
   <section id="sala" class="sala" hidden>
@@ -500,6 +502,14 @@ button, input, label { font: inherit; }
   });
   $("#qrFechar").addEventListener("click", () => { $("#modalQr").hidden = true; });
   $("#modalQr").addEventListener("click", (ev) => { if (ev.target.id === "modalQr") $("#modalQr").hidden = true; });
+
+  // ---------- link especial (#abrir) ----------
+  // No site, o botão de abrir lista fica escondido; quem recebe o link terminado em #abrir vê o botão.
+  function mostrarAbrir() {
+    if (location.hash === "#abrir") document.querySelectorAll("[data-abrir]").forEach((el) => { el.hidden = false; });
+  }
+  mostrarAbrir();
+  window.addEventListener("hashchange", mostrarAbrir);
 
   // ---------- início ----------
   (async () => {
