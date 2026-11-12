@@ -290,6 +290,21 @@ button, input, label { font: inherit; }
     return lista.sort((a, b) => a.n - b.n);
   }
 
+  // O progresso é guardado pelo link do vídeo (não pelo número), para não se perder
+  // quando a lista é renumerada. Converte o formato antigo (por número) na primeira vez.
+  function migrarProgresso(salvo) {
+    const novo = { v: 2, cur: null, t: {}, d: {}, done: [] };
+    if (!salvo) return novo;
+    if (salvo.v === 2) return Object.assign(novo, salvo);
+    const porNumero = new Map(eps.map((e) => [e.n, e.k]));
+    const k = (n) => porNumero.get(+n);
+    for (const [n, s] of Object.entries(salvo.t || {})) if (k(n)) novo.t[k(n)] = s;
+    for (const [n, s] of Object.entries(salvo.d || {})) if (k(n)) novo.d[k(n)] = s;
+    novo.done = (salvo.done || []).map(k).filter(Boolean);
+    novo.cur = k(salvo.cur) || null;
+    return novo;
+  }
+
   function carregarTexto(texto, nome, salvar) {
     const lista = parse(texto);
     if (!lista.length) {
@@ -298,14 +313,19 @@ button, input, label { font: inherit; }
       return false;
     }
     eps = lista;
+    eps.forEach((e) => { e.k = chaveUrl(e.url); });
     if (salvar) gravar("pe:lista", { texto, nome });
     chave = "pe:prog:" + chaveUrl(eps[0].url);
-    estado = Object.assign({ cur: eps[0].n, t: {}, d: {}, done: [] }, ler(chave) || {});
+    estado = migrarProgresso(ler(chave));
+    // A numeração sempre começa no 1 (ex.: lista que começa no 2 vira 1, 2, 3...)
+    const desloc = eps[0].n - 1;
+    if (desloc > 0) eps.forEach((e) => { e.n -= desloc; if (e.dupOf !== null) e.dupOf -= desloc; });
+    gravar(chave, estado);
     $("#serie").textContent = `${nome} · ${eps.length} episódios`;
     $("#vazio").hidden = true;
     $("#sala").hidden = false;
     desenharGrade();
-    const i = Math.max(0, eps.findIndex((e) => e.n === estado.cur));
+    const i = Math.max(0, eps.findIndex((e) => e.k === estado.cur));
     abrir(i, false);
     return true;
   }
@@ -333,17 +353,17 @@ button, input, label { font: inherit; }
       const e = eps[+b.dataset.i];
       const local = ehLocal(e);
       b.classList.toggle("atual", +b.dataset.i === idx);
-      b.classList.toggle("visto", done.has(e.n));
+      b.classList.toggle("visto", done.has(e.k));
       b.classList.toggle("local", local);
       b.classList.toggle("problema", e.dupOf !== null || (!local && vencido(e)));
-      const t = estado.t[e.n] || 0, d = estado.d[e.n] || 0;
+      const t = estado.t[e.k] || 0, d = estado.d[e.k] || 0;
       b.querySelector(".barra i").style.width = d ? Math.min(100, (t / d) * 100) + "%" : "0";
       let rotulo = `Episódio ${e.n}`;
-      if (done.has(e.n)) rotulo += ", assistido";
+      if (done.has(e.k)) rotulo += ", assistido";
       if (local) rotulo += ", baixado no PC";
       b.setAttribute("aria-label", rotulo);
     });
-    $("#contagem").textContent = `${estado.done.length} de ${eps.length} assistidos`;
+    $("#contagem").textContent = `${eps.filter((e) => done.has(e.k)).length} de ${eps.length} assistidos`;
   }
 
   // ---------- reprodução ----------
@@ -370,7 +390,7 @@ button, input, label { font: inherit; }
 
     $("#ant").disabled = i === 0;
     $("#prox").disabled = i === eps.length - 1;
-    estado.cur = e.n;
+    estado.cur = e.k;
     gravar(chave, estado);
     atualizarGrade();
     // Só rola a lista lateral (no PC); no celular a página fica parada.
@@ -388,15 +408,15 @@ button, input, label { font: inherit; }
   v.addEventListener("loadedmetadata", () => {
     const e = eps[idx];
     if (!e) return;
-    estado.d[e.n] = v.duration;
-    const t = estado.t[e.n] || 0;
+    estado.d[e.k] = v.duration;
+    const t = estado.t[e.k] || 0;
     if (t > 5 && t < v.duration - 8) v.currentTime = t;
   });
 
   v.addEventListener("timeupdate", () => {
     const e = eps[idx];
     if (!e) return;
-    estado.t[e.n] = v.currentTime;
+    estado.t[e.k] = v.currentTime;
     const agora = Date.now();
     if (agora - ultimoSalvo > 3000) { ultimoSalvo = agora; gravar(chave, estado); atualizarGrade(); }
   });
@@ -404,8 +424,8 @@ button, input, label { font: inherit; }
   v.addEventListener("ended", () => {
     const e = eps[idx];
     if (!e) return;
-    if (!estado.done.includes(e.n)) estado.done.push(e.n);
-    estado.t[e.n] = 0;
+    if (!estado.done.includes(e.k)) estado.done.push(e.k);
+    estado.t[e.k] = 0;
     gravar(chave, estado);
     atualizarGrade();
     if ($("#auto").checked && idx < eps.length - 1) abrir(idx + 1, true);
