@@ -1,0 +1,13 @@
+{
+  "name": "Player de Episódios",
+  "short_name": "Episódios",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#141118",
+  "theme_color": "#141118",
+  "icons": [
+    { "src": "icone.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

@@ -1,0 +1,505 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#141118">
+<title>Player de Episódios</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icone.svg" type="image/svg+xml">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Episódios">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Inter:wght@400;500;600&display=swap">
+<style>
+/* Layout: palco vertical 9:16 (formato dos episódios) + grade numerada de episódios; no celular, empilhados */
+:root {
+  --bg: #f5f3f8;
+  --surface: #ffffff;
+  --line: #e2dde9;
+  --fg: #1c1923;
+  --muted: #6b6478;
+  --accent: #c42f5c;
+  --accent-fg: #ffffff;
+  --accent-soft: #f9e3ea;
+  --ok: #1d8656;
+  --warn: #a96300;
+  --stage: #0c0a0f;
+  --f-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --f-body: Inter, "Segoe UI", system-ui, -apple-system, sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #141118; --surface: #1d1923; --line: #2f2938; --fg: #eeeaf4; --muted: #a39bb0;
+    --accent: #ff6f97; --accent-fg: #22080f; --accent-soft: #3a1a26; --ok: #4fc68d; --warn: #f2aa3c; --stage: #000;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #141118; --surface: #1d1923; --line: #2f2938; --fg: #eeeaf4; --muted: #a39bb0;
+  --accent: #ff6f97; --accent-fg: #22080f; --accent-soft: #3a1a26; --ok: #4fc68d; --warn: #f2aa3c; --stage: #000;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font: 15px/1.5 var(--f-body);
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+[hidden] { display: none !important; }
+button, input, label { font: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.wrap {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+
+/* Topo */
+.top { border-bottom: 1px solid var(--line); background: var(--surface); }
+.top .wrap { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding-block: 12px; }
+.marca { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.marca h1 { margin: 0; font: 800 1.25rem/1.1 var(--f-display); letter-spacing: -0.01em; }
+.serie { color: var(--muted); font-size: 0.82rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.acoes { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-height: 42px; padding: 0 16px; border-radius: 10px; border: 1px solid transparent;
+  background: var(--accent); color: var(--accent-fg); font-weight: 600; cursor: pointer;
+  -webkit-tap-highlight-color: transparent; user-select: none;
+}
+.btn.sec { background: transparent; color: var(--fg); border-color: var(--line); }
+.btn:disabled { opacity: 0.4; cursor: default; }
+.btn:not(:disabled):active { transform: translateY(1px); }
+
+/* Estado vazio */
+.vazio { padding-block: 48px; display: grid; gap: 16px; max-width: 560px; }
+.vazio h2 { margin: 0; font: 800 clamp(1.6rem, 5vw, 2.2rem)/1.1 var(--f-display); text-wrap: balance; }
+.vazio p { margin: 0; color: var(--muted); }
+.vazio pre {
+  margin: 0; padding: 12px 14px; border-radius: 10px; background: var(--surface); border: 1px solid var(--line);
+  font: 12px/1.6 ui-monospace, Consolas, monospace; color: var(--muted); overflow-x: auto;
+}
+.erro-lista { color: var(--warn); font-weight: 600; }
+
+/* Sala */
+.sala { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 28px; padding-block: 20px; align-items: start; }
+.palco { display: grid; gap: 12px; justify-items: center; }
+.tela {
+  position: relative;
+  height: min(78vh, 760px);
+  aspect-ratio: 9 / 16;
+  max-width: 100%;
+  background: var(--stage);
+  border-radius: 16px;
+  overflow: hidden;
+}
+.tela video { width: 100%; height: 100%; display: block; object-fit: contain; background: var(--stage); }
+.aviso {
+  position: absolute; inset: auto 12px 64px 12px;
+  background: rgba(12, 10, 15, 0.88); color: #f3eef6; border-radius: 12px; padding: 14px;
+  display: grid; gap: 10px; font-size: 0.9rem;
+}
+.aviso .btn { justify-self: start; min-height: 36px; }
+
+.controles { width: 100%; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: center; }
+.agora { text-align: center; min-width: 0; }
+.agora strong { display: block; font: 800 1.15rem/1.2 var(--f-display); }
+.info { display: block; color: var(--muted); font-size: 0.8rem; }
+.info .alerta { color: var(--warn); font-weight: 600; }
+.auto { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 0.88rem; cursor: pointer; }
+.auto input { width: 18px; height: 18px; accent-color: var(--accent); }
+
+/* Lista */
+.lista { min-width: 0; display: grid; gap: 12px; }
+.lista-topo { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.lista-topo h2 { margin: 0; font: 800 1.1rem/1.2 var(--f-display); }
+.contagem { color: var(--muted); font-size: 0.85rem; font-variant-numeric: tabular-nums; }
+.grade { display: grid; grid-template-columns: repeat(auto-fill, minmax(54px, 1fr)); gap: 8px; }
+.ep {
+  position: relative; min-height: 50px; border-radius: 10px; border: 1px solid var(--line);
+  background: var(--surface); color: var(--fg); cursor: pointer; padding: 0; overflow: hidden;
+  font: 600 1rem/1 var(--f-body); font-variant-numeric: tabular-nums;
+  -webkit-tap-highlight-color: transparent;
+}
+.ep .barra { position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: transparent; }
+.ep .barra i { display: block; height: 100%; width: 0; background: var(--accent); }
+.ep .marca-ep { position: absolute; top: 4px; right: 5px; font-size: 0.65rem; line-height: 1; }
+.ep.visto { color: var(--muted); }
+.ep.visto .marca-ep::after { content: "✓"; color: var(--ok); font-weight: 700; }
+.ep.local::before { content: ""; position: absolute; top: 6px; left: 6px; width: 6px; height: 6px; border-radius: 50%; background: var(--ok); }
+.ep.problema { border-style: dashed; border-color: var(--warn); }
+.ep.atual { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+.ep.atual .barra i { background: var(--accent-fg); opacity: 0.7; }
+.ep.atual.visto .marca-ep::after { color: var(--accent-fg); }
+.legenda { margin: 0; display: flex; flex-wrap: wrap; gap: 6px 16px; color: var(--muted); font-size: 0.8rem; }
+.legenda span { display: inline-flex; align-items: center; gap: 6px; }
+.pt { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); display: inline-block; }
+.tr { width: 14px; height: 10px; border-radius: 3px; border: 1px dashed var(--warn); display: inline-block; }
+
+/* Modal QR */
+.modal { position: fixed; inset: 0; background: rgba(10, 8, 14, 0.6); display: grid; place-items: center; padding: 16px; z-index: 20; }
+.caixa { background: var(--surface); color: var(--fg); border-radius: 16px; padding: 22px; display: grid; gap: 12px; justify-items: center; max-width: 340px; width: 100%; text-align: center; }
+.caixa h3 { margin: 0; font: 800 1.2rem/1.2 var(--f-display); }
+.caixa p { margin: 0; color: var(--muted); font-size: 0.88rem; }
+#qr { background: #fff; padding: 12px; border-radius: 12px; }
+#qr img, #qr canvas { display: block; }
+.endereco { font: 600 1rem/1.3 ui-monospace, Consolas, monospace; word-break: break-all; user-select: all; }
+
+@media (max-width: 820px) {
+  .sala { grid-template-columns: minmax(0, 1fr); gap: 20px; padding-block: 12px; }
+  .tela { height: min(70vh, calc((100vw - 32px) * 16 / 9), 760px); border-radius: 12px; }
+  .controles .btn { padding: 0 12px; }
+}
+@media (min-width: 821px) {
+  .lista { position: sticky; top: 16px; max-height: calc(100vh - 32px); overflow-y: auto; padding-right: 4px; }
+}
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <div class="marca">
+      <h1>Player de Episódios</h1>
+      <span id="serie" class="serie">Nenhuma lista aberta</span>
+    </div>
+    <div class="acoes">
+      <label class="btn" for="arq">Abrir .txt</label>
+      <input type="file" id="arq" accept=".txt,text/plain" hidden>
+      <button id="btPc" class="btn sec" type="button" hidden>Lista do PC</button>
+      <button id="btCel" class="btn sec" type="button" hidden>Abrir no celular</button>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <section id="vazio" class="vazio">
+    <h2>Escolha a lista de episódios</h2>
+    <p>Abra o arquivo .txt com os links, o mesmo usado no Baixador. Os episódios aparecem em ordem e o player lembra onde você parou em cada um.</p>
+    <p id="erroLista" class="erro-lista" hidden></p>
+    <div><label class="btn" for="arq">Abrir arquivo .txt</label></div>
+    <pre>========== EPISÓDIO 1 ==========
+https://...link do vídeo...
+========== EPISÓDIO 2 ==========
+https://...</pre>
+  </section>
+
+  <section id="sala" class="sala" hidden>
+    <div class="palco">
+      <div class="tela">
+        <video id="v" controls playsinline preload="metadata"></video>
+        <div id="aviso" class="aviso" hidden>
+          <span id="avisoTxt"></span>
+          <button id="btTentar" class="btn" type="button">Tentar de novo</button>
+        </div>
+      </div>
+      <div class="controles">
+        <button id="ant" class="btn sec" type="button" aria-label="Episódio anterior">‹ Anterior</button>
+        <div class="agora">
+          <strong id="titulo">Episódio</strong>
+          <span id="info" class="info"></span>
+        </div>
+        <button id="prox" class="btn" type="button" aria-label="Próximo episódio">Próximo ›</button>
+      </div>
+      <label class="auto" for="auto"><input type="checkbox" id="auto" checked> Tocar o próximo automaticamente</label>
+    </div>
+
+    <aside class="lista">
+      <div class="lista-topo">
+        <h2>Episódios</h2>
+        <span id="contagem" class="contagem"></span>
+      </div>
+      <div id="grade" class="grade" role="list"></div>
+      <p class="legenda">
+        <span><i class="pt"></i> baixado no PC (não expira)</span>
+        <span><i class="tr"></i> link repetido ou vencido</span>
+      </p>
+    </aside>
+  </section>
+</main>
+
+<div id="modalQr" class="modal" hidden>
+  <div class="caixa" role="dialog" aria-labelledby="qrTitulo">
+    <h3 id="qrTitulo">Assistir no celular</h3>
+    <p>Conecte o celular ou tablet no mesmo Wi-Fi do PC e aponte a câmera para o código, ou digite o endereço no navegador.</p>
+    <div id="qr"></div>
+    <div id="qrEnd" class="endereco"></div>
+    <button id="qrFechar" class="btn sec" type="button">Fechar</button>
+  </div>
+</div>
+
+<script>
+(() => {
+  const $ = (s) => document.querySelector(s);
+  const v = $("#v");
+  const RE_EP = /EPIS[OÓ]DIO\s*(\d+)/i;
+  const RE_URL = /https?:\/\/[^\s"'<>]+/g;
+
+  let eps = [];
+  let idx = -1;
+  let locais = new Set();
+  let servidor = false;
+  let chave = "";
+  let estado = { cur: null, t: {}, d: {}, done: [] };
+  let ultimoSalvo = 0;
+
+  // ---------- utilidades ----------
+  const pad = (n) => String(n).padStart(2, "0");
+  const ler = (k) => { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } };
+  const gravar = (k, val) => { try { localStorage.setItem(k, JSON.stringify(val)); } catch {} };
+  const chaveUrl = (u) => { try { const x = new URL(u); return x.host + x.pathname; } catch { return u; } };
+  const validade = (u) => { const m = u.match(/auth_key=(\d{9,11})-/); return m ? new Date(+m[1] * 1000) : null; };
+  const dataCurta = (d) => d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+  const nomeArquivo = (e) => `Episodio_${pad(e.n)}.mp4`;
+  const ehLocal = (e) => locais.has(nomeArquivo(e));
+  const vencido = (e) => { const d = validade(e.url); return d && d.getTime() < Date.now(); };
+
+  // ---------- leitura do .txt ----------
+  function parse(texto) {
+    const brutos = [];
+    let atual = null, auto = 1;
+    for (const linha of texto.split(/\r?\n/)) {
+      const m = linha.match(RE_EP);
+      if (m) { atual = { n: +m[1], urls: [] }; brutos.push(atual); continue; }
+      for (const u of (linha.match(RE_URL) || [])) {
+        if (!atual) {
+          while (brutos.some((e) => e.n === auto)) auto++;
+          brutos.push({ n: auto++, urls: [u] });
+        } else atual.urls.push(u);
+      }
+    }
+    const vistos = new Map();
+    const lista = [];
+    for (const e of brutos) {
+      if (!e.urls.length || lista.some((x) => x.n === e.n)) continue;
+      const k = chaveUrl(e.urls[0]);
+      const dup = vistos.has(k) ? vistos.get(k) : null;
+      if (dup === null) vistos.set(k, e.n);
+      lista.push({ n: e.n, url: e.urls[0], dupOf: dup });
+    }
+    return lista.sort((a, b) => a.n - b.n);
+  }
+
+  function carregarTexto(texto, nome, salvar) {
+    const lista = parse(texto);
+    if (!lista.length) {
+      $("#erroLista").textContent = `Nenhum link encontrado em "${nome}". Confira se o arquivo tem os endereços https:// dos vídeos.`;
+      $("#erroLista").hidden = false;
+      return false;
+    }
+    eps = lista;
+    if (salvar) gravar("pe:lista", { texto, nome });
+    chave = "pe:prog:" + chaveUrl(eps[0].url);
+    estado = Object.assign({ cur: eps[0].n, t: {}, d: {}, done: [] }, ler(chave) || {});
+    $("#serie").textContent = `${nome} · ${eps.length} episódios`;
+    $("#vazio").hidden = true;
+    $("#sala").hidden = false;
+    desenharGrade();
+    const i = Math.max(0, eps.findIndex((e) => e.n === estado.cur));
+    abrir(i, false);
+    return true;
+  }
+
+  // ---------- grade ----------
+  function desenharGrade() {
+    const g = $("#grade");
+    g.innerHTML = "";
+    eps.forEach((e, i) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "ep";
+      b.dataset.i = i;
+      b.setAttribute("role", "listitem");
+      b.innerHTML = `<span class="marca-ep"></span>${e.n}<span class="barra"><i></i></span>`;
+      b.addEventListener("click", () => abrir(i, true));
+      g.appendChild(b);
+    });
+    atualizarGrade();
+  }
+
+  function atualizarGrade() {
+    const done = new Set(estado.done);
+    document.querySelectorAll(".ep").forEach((b) => {
+      const e = eps[+b.dataset.i];
+      const local = ehLocal(e);
+      b.classList.toggle("atual", +b.dataset.i === idx);
+      b.classList.toggle("visto", done.has(e.n));
+      b.classList.toggle("local", local);
+      b.classList.toggle("problema", e.dupOf !== null || (!local && vencido(e)));
+      const t = estado.t[e.n] || 0, d = estado.d[e.n] || 0;
+      b.querySelector(".barra i").style.width = d ? Math.min(100, (t / d) * 100) + "%" : "0";
+      let rotulo = `Episódio ${e.n}`;
+      if (done.has(e.n)) rotulo += ", assistido";
+      if (local) rotulo += ", baixado no PC";
+      b.setAttribute("aria-label", rotulo);
+    });
+    $("#contagem").textContent = `${estado.done.length} de ${eps.length} assistidos`;
+  }
+
+  // ---------- reprodução ----------
+  function fonte(e) { return ehLocal(e) ? "Episodios/" + encodeURIComponent(nomeArquivo(e)) : e.url; }
+
+  function abrir(i, tocar) {
+    if (i < 0 || i >= eps.length) return;
+    idx = i;
+    const e = eps[i];
+    $("#aviso").hidden = true;
+    v.src = fonte(e);
+    v.load();
+    $("#titulo").textContent = `Episódio ${e.n}`;
+
+    const partes = [];
+    if (ehLocal(e)) partes.push("arquivo do PC");
+    else {
+      const d = validade(e.url);
+      if (d) partes.push(vencido(e) ? `<span class="alerta">link venceu em ${dataCurta(d)}</span>` : `online · link vale até ${dataCurta(d)}`);
+      else partes.push("online");
+    }
+    if (e.dupOf !== null) partes.push(`<span class="alerta">mesmo link do ep. ${e.dupOf}</span>`);
+    $("#info").innerHTML = partes.join(" · ");
+
+    $("#ant").disabled = i === 0;
+    $("#prox").disabled = i === eps.length - 1;
+    estado.cur = e.n;
+    gravar(chave, estado);
+    atualizarGrade();
+    // Só rola a lista lateral (no PC); no celular a página fica parada.
+    const tile = document.querySelector(`.ep[data-i="${i}"]`);
+    const lista = document.querySelector(".lista");
+    if (tile && lista.scrollHeight > lista.clientHeight + 4) {
+      const t = tile.offsetTop - lista.offsetTop;
+      if (t < lista.scrollTop || t + tile.offsetHeight > lista.scrollTop + lista.clientHeight) {
+        lista.scrollTop = t - lista.clientHeight / 2;
+      }
+    }
+    if (tocar) v.play().catch(() => {});
+  }
+
+  v.addEventListener("loadedmetadata", () => {
+    const e = eps[idx];
+    if (!e) return;
+    estado.d[e.n] = v.duration;
+    const t = estado.t[e.n] || 0;
+    if (t > 5 && t < v.duration - 8) v.currentTime = t;
+  });
+
+  v.addEventListener("timeupdate", () => {
+    const e = eps[idx];
+    if (!e) return;
+    estado.t[e.n] = v.currentTime;
+    const agora = Date.now();
+    if (agora - ultimoSalvo > 3000) { ultimoSalvo = agora; gravar(chave, estado); atualizarGrade(); }
+  });
+
+  v.addEventListener("ended", () => {
+    const e = eps[idx];
+    if (!e) return;
+    if (!estado.done.includes(e.n)) estado.done.push(e.n);
+    estado.t[e.n] = 0;
+    gravar(chave, estado);
+    atualizarGrade();
+    if ($("#auto").checked && idx < eps.length - 1) abrir(idx + 1, true);
+  });
+
+  v.addEventListener("error", () => {
+    const e = eps[idx];
+    if (!e || !v.getAttribute("src")) return;
+    let msg;
+    if (ehLocal(e)) msg = "Não foi possível abrir o arquivo no PC. Confira se o programa do PC continua aberto.";
+    else if (vencido(e)) msg = `O link deste episódio venceu em ${dataCurta(validade(e.url))}. Gere links novos e abra o .txt de novo.`;
+    else msg = "Não foi possível carregar este episódio. Confira a internet; se continuar, o link pode ter expirado.";
+    $("#avisoTxt").textContent = msg;
+    $("#aviso").hidden = false;
+  });
+
+  $("#btTentar").addEventListener("click", () => abrir(idx, true));
+  $("#ant").addEventListener("click", () => abrir(idx - 1, true));
+  $("#prox").addEventListener("click", () => abrir(idx + 1, true));
+
+  try { const a = ler("pe:auto"); if (a !== null) $("#auto").checked = a; } catch {}
+  $("#auto").addEventListener("change", (ev) => gravar("pe:auto", ev.target.checked));
+
+  document.addEventListener("keydown", (ev) => {
+    if (ev.target.tagName === "INPUT" || !eps.length) return;
+    if (ev.key === "n" || ev.key === "N" || ev.key === "PageDown") abrir(idx + 1, true);
+    if (ev.key === "p" || ev.key === "P" || ev.key === "PageUp") abrir(idx - 1, true);
+  });
+
+  // ---------- abrir arquivo ----------
+  $("#arq").addEventListener("change", (ev) => {
+    const f = ev.target.files && ev.target.files[0];
+    if (!f) return;
+    const r = new FileReader();
+    r.onload = () => carregarTexto(String(r.result), f.name, true);
+    r.readAsText(f, "utf-8");
+    ev.target.value = "";
+  });
+
+  async function listaDoPc() {
+    try {
+      const r = await fetch("links.txt", { cache: "no-store" });
+      if (!r.ok) return false;
+      try { localStorage.removeItem("pe:lista"); } catch {}
+      return carregarTexto(await r.text(), "lista do PC", false);
+    } catch { return false; }
+  }
+  $("#btPc").addEventListener("click", listaDoPc);
+
+  // ---------- QR para o celular ----------
+  function carregarScript(src) {
+    return new Promise((ok, falha) => {
+      const s = document.createElement("script");
+      s.src = src; s.onload = ok; s.onerror = falha;
+      document.head.appendChild(s);
+    });
+  }
+  $("#btCel").addEventListener("click", async () => {
+    $("#modalQr").hidden = false;
+    const caixaQr = $("#qr");
+    caixaQr.innerHTML = "";
+    try {
+      const info = await (await fetch("api/info", { cache: "no-store" })).json();
+      $("#qrEnd").textContent = info.lan || "Endereço não encontrado";
+      if (!info.lan) { caixaQr.hidden = true; return; }
+      caixaQr.hidden = false;
+      if (!window.QRCode) await carregarScript("https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js");
+      new QRCode(caixaQr, { text: info.lan, width: 200, height: 200 });
+    } catch {
+      caixaQr.hidden = true;
+    }
+  });
+  $("#qrFechar").addEventListener("click", () => { $("#modalQr").hidden = true; });
+  $("#modalQr").addEventListener("click", (ev) => { if (ev.target.id === "modalQr") $("#modalQr").hidden = true; });
+
+  // ---------- início ----------
+  (async () => {
+    try {
+      const r = await fetch("api/locais", { cache: "no-store" });
+      if (r.ok) { servidor = true; (await r.json()).forEach((n) => locais.add(n)); }
+    } catch {}
+    if (servidor) {
+      $("#btPc").hidden = false;
+      if (["localhost", "127.0.0.1"].includes(location.hostname)) $("#btCel").hidden = false;
+    }
+    const salvo = ler("pe:lista");
+    if (salvo && salvo.texto && carregarTexto(salvo.texto, salvo.nome, false)) return;
+    if (servidor) await listaDoPc();
+  })();
+})();
+</script>
+</body>
+</html>
